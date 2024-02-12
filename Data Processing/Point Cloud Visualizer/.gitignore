@@ -1,0 +1,7 @@
+test/
+*.pt
+venv/
+data_long/
+data/
+log/
+runs/

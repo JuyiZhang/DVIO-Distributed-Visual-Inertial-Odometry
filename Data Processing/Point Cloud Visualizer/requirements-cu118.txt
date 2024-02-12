@@ -1,0 +1,11 @@
+numba
+ultralytics
+opencv-python
+numpy
+matplotlib
+panda3d
+panda3d-gltf
+panda3d-simplepbr
+pydantic
+torch
+open3d
