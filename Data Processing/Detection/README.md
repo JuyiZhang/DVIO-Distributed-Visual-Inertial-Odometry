@@ -12,15 +12,18 @@ The function of the component is to
 
 ## Environment
 It is recommended to use Linux if pose detection is used as mediapipe does not support GPU inferrence in Windows
+
 The app assumes that Python is installed. The developer uses Python 3.11.6 and 3.8.0 without issue
 
 ## Usage
 1. Install all requirements
 
 > For M-series SoC and CPU Inferrence
+> 
 > `python -m pip install -r requirements.txt`
 
 > For NVIDIA GPU Inferrence
+> 
 > `python -m pip install -r requirements-cu118.txt`
 
 2. Run the backend GUI
