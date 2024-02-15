@@ -21,11 +21,11 @@ There are four main components, each run as a separate application. The correspo
 |Compiling Environment|Python 3.11|
 |Run Device|M1 Max Macbook Pro/Windows PC with Titan RTX|
 |Description|This app is used to determine person's coordinate from the data collected in DVIO Unity App|
-|Requirements|Refer to requirements.txt (For CUDA backend use requirements-nvgpu.txt|
-### DVIO Cloud Server App
+|Requirements|Refer to requirements.txt (For CUDA backend use requirements-cu118.txt)|
+### DVIO Cloud Manager App
 |Name|Value|
 |:----------|:----------|
-|Location|Data Processing/Cloud Server|
+|Location|Data Processing/Cloud Manager|
 |Compiling Environment|Python 3.11|
 |Run Device|Any Cloud Service|
 |Description|This app is used to manage the spatial anchor created by Unity App and master the IP connection initiated by DVIO Detection App|

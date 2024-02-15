@@ -1,0 +1,15 @@
+ultralytics
+opencv-python
+numpy
+matplotlib
+pydantic
+open3d
+flask
+mediapipe
+pyqt6
+pyqtspinner
+qtrangeslider
+--index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+torchaudio

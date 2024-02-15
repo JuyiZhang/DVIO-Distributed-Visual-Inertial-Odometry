@@ -8,12 +8,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/DVIO-Scene.unity
     guid: 9fc0d4010bbf28b4594072e72b8655ab
-  - enabled: 0
-    path: Assets/Scenes/MuTA-Test.unity
-    guid: bfa58080443790d4eb6360a648ab58d1
-  - enabled: 0
-    path: Assets/Scenes/SpatialAnchorTest.unity
-    guid: 484b048aedf30fb4a87d6c05358f7977
   m_configObjects:
     Unity.XR.WindowsMR.Settings: {fileID: 11400000, guid: cf9ca7364c593fc4ca7908590512e817, type: 2}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 9c6ac832efde8f3448df33e9af4147de, type: 2}
