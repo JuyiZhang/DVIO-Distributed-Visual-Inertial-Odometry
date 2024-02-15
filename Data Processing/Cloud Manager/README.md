@@ -12,5 +12,6 @@ You can deploy your app to any cloud service, make sure flask is installed
 ### To try the app in localhost
 First install flask, which is the only requirement for the component
 >`pip install flask`
+
 Then run the app 
 >`flask run`
