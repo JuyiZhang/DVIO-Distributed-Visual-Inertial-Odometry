@@ -1,6 +1,4 @@
 from flask import Flask, request, g, current_app, render_template
-from flask_pymongo import PyMongo
-from werkzeug.local import LocalProxy
 import json
 import time
 import os
@@ -118,10 +116,3 @@ def qr_test():
     }
     return(json.dumps(qr_result))
     
-    
-def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        db = g._database = PyMongo(current_app).db
-
-db = LocalProxy(get_db)
