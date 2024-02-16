@@ -19,7 +19,7 @@ There are four main components, each run as a separate application. The correspo
 |:----------|:----------|
 |Location|Data Processing/Detection|
 |Compiling Environment|Python 3.11|
-|Run Device|M1 Max Macbook Pro/Windows PC with Titan RTX|
+|Run Device|M1 Max Macbook Pro/PC with Titan RTX|
 |Description|This app is used to determine person's coordinate from the data collected in DVIO Unity App|
 |Requirements|Refer to requirements.txt (For CUDA backend use requirements-cu118.txt)|
 ### DVIO Cloud Manager App
