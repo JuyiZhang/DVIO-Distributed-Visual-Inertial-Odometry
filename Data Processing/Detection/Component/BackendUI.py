@@ -44,6 +44,8 @@ class app_window(QMainWindow):
     device_image_dict: dict[int, list[QLabel]] = {}
     device_checkbox_dict: dict[int, QCheckBox] = {}
     device_timestamp_dict_global: dict[int, int] = {}
+    predict_traj: list[list[float]] = []
+    actual_traj: list[list[float]] = []
     data: dict[int, int] = None
     device_address_update: bool = False
     capture_image_update: bool = False
@@ -56,6 +58,7 @@ class app_window(QMainWindow):
         manager = Manager()
         self.device_timestamp_dict = manager.dict()
         self.direct_feed = True
+        self.session = None
         
         self.setWindowIcon(QtGui.QIcon('Assets/Logo.png'))
         self.setWindowTitle('MuTA')
@@ -100,6 +103,9 @@ class app_window(QMainWindow):
         
         view_menu = QMenu("&View", self)
         menu_bar.addMenu(view_menu)
+        show_error_action = QAction("&Show Error", self)
+        show_error_action.triggered.connect(self.calc_error)
+        view_menu.addAction(show_error_action)
         
         
     
@@ -199,6 +205,8 @@ class app_window(QMainWindow):
         self.tree_widget.setColumnWidth(1, 150)
         self.tree_widget.itemSelectionChanged.connect(self.show_current_frame)
         self.tree_widget.setHeaderLabels(["Device/Timestamp", "Actual Time", "Time Delta", "Position"])
+        self.tree_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree_widget.customContextMenuRequested.connect(self.show_context_menu)
         
         self.selection_label = QLabel("Select a master device to continue inferring")
         
@@ -254,6 +262,39 @@ class app_window(QMainWindow):
         self.timestamp_range_slider.hide()
         self.infer_button_collection.hide()
     
+    def show_context_menu(self, event):
+        context_menu = QMenu(self.tree_widget)
+        detect = QAction("Detect Frame")
+        set_start = QAction("Set Start Frame")
+        set_end = QAction("Set End Frame")
+        detect.triggered.connect(self.detect_frame)
+        set_start.triggered.connect(self.set_timestamp_start)
+        set_end.triggered.connect(self.set_timestamp_end)
+        context_menu.addAction(detect)
+        context_menu.addAction(set_start)
+        context_menu.addAction(set_end)
+        context_menu.exec_(self.tree_widget.mapToGlobal(event))
+    
+    def detect_frame(self):
+        sender: QTreeWidgetItem = self.tree_widget.selectedItems()[0]
+        self.detection_device = int(ipaddress.ip_address(sender.parent().text(0)))
+        self.secondary_device = []
+        self.timestamp_range_lower_index = sender.parent().indexOfChild(sender)-1
+        self.timestamp_detection_index = sender.parent().indexOfChild(sender)
+        self.timestamp_range_upper_index = self.timestamp_detection_index
+        print(self.timestamp_detection_index)
+        self.generate_next_result()
+        
+    def set_timestamp_start(self):
+        sender: QTreeWidgetItem = self.tree_widget.selectedItems()[0]
+        sel_index = sender.parent().indexOfChild(sender)
+        self.timestamp_range_input_lower.setCurrentIndex(sel_index)
+    
+    def set_timestamp_end(self):
+        sender: QTreeWidgetItem = self.tree_widget.selectedItems()[0]
+        sel_index = sender.parent().indexOfChild(sender)
+        self.timestamp_range_input_upper.setCurrentIndex(sel_index)
+    
     def add_widget_to_layout_batch(self, widgets: list[QWidget], direction_horizontal: bool = True):
         layout_widget = QWidget()
         layout = QHBoxLayout() if direction_horizontal else QVBoxLayout()
@@ -298,6 +339,9 @@ class app_window(QMainWindow):
         self.load_directory()
     
     def load_directory(self):
+        if self.session is not None:
+            del(self.session)
+            self.session = None
         self.device_timestamp_list_dict = Utility.list_all_device_timestamp(self.session_folder)
         if self.device_timestamp_list_dict is None:
             dialog = QMessageBox(self)
@@ -313,10 +357,10 @@ class app_window(QMainWindow):
         self.tree_widget.clear()
         for device, timestamp_list in self.device_timestamp_list_dict.items():
             device_list.append(str(ipaddress.ip_address(device)))
-            tree_item = QTreeWidgetItem([str(ipaddress.ip_address(device))])
+            tree_item = QTreeWidgetItem([str(ipaddress.ip_address(device)), Utility.get_pose_from_timestamp(self.session_folder, device, timestamp_list[0])[2].__str__(), "", Utility.get_pose_from_timestamp(self.session_folder, device, timestamp_list[0])[3].__str__()])
             prev_timestamp = 0
             for timestamp in timestamp_list:
-                tree_child = QTreeWidgetItem([str(timestamp), datetime.fromtimestamp(timestamp/1000).strftime("%m/%d/%Y %H:%M:%S"), str(timestamp - prev_timestamp), Utility.get_pose_from_timestamp(self.session_folder, device, timestamp)[0].tolist().__str__()])
+                tree_child = QTreeWidgetItem([str(timestamp), datetime.fromtimestamp(timestamp/1000).strftime("%m/%d/%Y %H:%M:%S"), str(timestamp - prev_timestamp), Utility.get_pose_from_timestamp(self.session_folder, device, timestamp)[0].__str__() + Utility.get_pose_from_timestamp(self.session_folder, device, timestamp)[1].__str__()])
                 prev_timestamp = timestamp
                 tree_item.addChild(tree_child)
             tree_items.append(tree_item)
@@ -342,6 +386,7 @@ class app_window(QMainWindow):
             device_button.clicked.connect(self.set_master_action)
             
         self.set_progress_indicator(100, "Done")
+        self.session = Session(self.session_folder, immediate_detection=True)
 
     def show_current_frame(self):
         if len(self.tree_widget.selectedItems()) != 1:
@@ -358,7 +403,7 @@ class app_window(QMainWindow):
         self.set_master_device(master_device)
     
     def set_master_device(self, master_device = None):
-        self.session = Session(self.session_folder, immediate_detection=True)
+        
         self.tree_widget.setMaximumHeight(600)
         self.detection_device = int(ipaddress.ip_address(master_device))
         self.session.try_add_device(self.detection_device)
@@ -369,6 +414,7 @@ class app_window(QMainWindow):
                 continue
             self.session.try_add_device(device)
             for timestamp in timestamp_list:
+                
                 self.session.new_frame(timestamp, device)
             self.secondary_device.append(self.session.devices[device])
             
@@ -437,36 +483,42 @@ class app_window(QMainWindow):
         timestamp_detection = self.device_timestamp_list_dict[self.detection_device][self.timestamp_detection_index]
         progress = (self.timestamp_detection_index - self.timestamp_range_lower_index) * 100 / (self.timestamp_range_upper_index - self.timestamp_range_lower_index)
         self.set_progress_indicator(int(progress), "Detecting frame " + str(timestamp_detection))
-        self.session.new_frame(timestamp_detection, self.detection_device)
+        self.session.detect_frame(self.detection_device, timestamp_detection)
         person_coordinate: list[list[float]] = [[],[]]
-        device_coordinate: list[list[float]] = [[],[]]
+        device_coordinate: dict[int, np.ndarray] = {} # Device name : 2*n float matrix of points
+        for device in self.secondary_device:
+            device_coordinate[device.id] = np.array([])
         anchor_coordinate_main_device = self.session.devices[self.detection_device].current_frame.pose
-        print(anchor_coordinate_main_device)
-
+        position_master = anchor_coordinate_main_device[0]#Utility.get_inv_transformation_of_point(anchor_coordinate_main_device[0], anchor_coordinate_main_device[2], anchor_coordinate_main_device[3])
         for timestamp, person_dict in self.session.observation_history.items():
             for device in self.secondary_device:
                 device_3d_coordinate = device.get_device_transform_at_timestamp(timestamp)
-                device_coordinate[0].append(device_3d_coordinate[0])
-                device_coordinate[1].append(device_3d_coordinate[2])
+                device_coordinate[device.id] = np.append(device_coordinate[device.id], [device_3d_coordinate[0], device_3d_coordinate[2]]).reshape(-1,2)
             for person_id, person in person_dict.items():
-                person_coordinate[0].append(person.coordinate[0] + anchor_coordinate_main_device[2][0] - anchor_coordinate_main_device[0][0])
-                person_coordinate[1].append(- person.coordinate[2] - anchor_coordinate_main_device[2][2] + anchor_coordinate_main_device[0][2])
+                converted_coordinate = person.coordinate#Utility.get_inv_transformation_of_point(person.coordinate, anchor_coordinate_main_device[2], anchor_coordinate_main_device[3])
+                person_coordinate[0].append(converted_coordinate[0])
+                person_coordinate[1].append(-converted_coordinate[2])
                 break
         self.result_plot.aces.clear()
         self.result_plot.aces.plot(person_coordinate[0], person_coordinate[1], '-o', label="MuTA Result")
-        self.result_plot.aces.plot(device_coordinate[0], device_coordinate[1], '-o', label="HoloLens Tracking")
+        for device_id, device_pos in device_coordinate.items():
+            self.result_plot.aces.plot(device_pos[:,0], device_pos[:,1], '-o', label="HoloLens " + str(ipaddress.ip_address(device_id)))
+        self.result_plot.aces.plot(position_master[0], position_master[2], '-o', label="Master Device")
         self.result_plot.aces.set_xlabel("Position x (m)")
         self.result_plot.aces.set_ylabel("Position y (m)")
         self.result_plot.aces.legend()
         self.result_plot.draw()
-            
+        self.predict_traj = person_coordinate
+        self.actual_traj = device_coordinate
         self.timestamp_detection_index += 1
         if (self.timestamp_detection_index > self.timestamp_range_upper_index + 1):
             self.timestamp_detection_index = self.timestamp_range_lower_index
         self.set_image_at_path(Utility.get_ab_image_from_timestamp(self.session_folder, self.detection_device, timestamp_detection))
         self.set_image_at_path(self.session.devices[self.detection_device].latest_processed_image, False)
         self.set_progress_indicator(int(progress), "Waiting Input " + str(timestamp_detection))
-        
+    
+    def calc_error(self):
+        print(Utility.get_path_rmse(self.predict_traj, self.actual_traj))
         
     def clear_result(self):
         self.timestamp_detection_index = self.timestamp_range_lower_index
@@ -477,6 +529,8 @@ class app_window(QMainWindow):
         timestamp_upper = self.device_timestamp_list_dict[self.detection_device][self.timestamp_range_upper_index]
         self.set_image_at_path(Utility.get_ab_image_from_timestamp(self.session_folder, self.detection_device, timestamp_lower))
         self.set_image_at_path(Utility.get_ab_image_from_timestamp(self.session_folder, self.detection_device, timestamp_upper), False)
+        self.session.predicted_slope = {}
+        self.session.prev_result = {}
     
     # Value in terms of percentile and if value is -1 then regard as indefinite
     def set_progress_indicator(self, value: int = -1, text: str = None):

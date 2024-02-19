@@ -24,7 +24,6 @@ class Session:
     observed_person: dict[int, Person] = {} # The list of observed body
     observation_history: dict[int, dict[int, Person]] = {}
     devices: dict[int, Device] = {}
-    device_keys: list[int] = []
     main_device = 0 # The main device for display collected data
     detected_image = np.array([]) # The image after post processing
     master_frame_updated = False
@@ -35,6 +34,7 @@ class Session:
     
     # session_folder: The Folder of the session, use_secondary_tracking: if DVIO method is employed, immediate_detection: if detection happens immediately after adding frame
     def __init__(self, session_folder, use_secondary_tracking = True, immediate_detection = False) -> None:
+        print("Creating new session with folder " + session_folder)
         self.session_folder = session_folder
         self.use_secondary_tracking = use_secondary_tracking
         self.immediate_detection = immediate_detection
@@ -43,11 +43,10 @@ class Session:
         
     def new_frame(self, timestamp: int, device: int, frame: Frame = None):
         
-        self.devices[device].add_frame(timestamp, frame)
+        self.devices[device].try_add_frame(timestamp, frame)
         
         if (self.immediate_detection):
-            observed_person_list = self.devices[device].detect_frame()
-            self.process_person_data(observed_person_list, timestamp)
+            self.detect_frame(device)
             
         if (device == self.main_device):
             # Updating frame for primary device
@@ -55,6 +54,13 @@ class Session:
             self.detection_flag = True
         
         #UDPClient.send_all_pose(self.devices) # TODO change to update device pose
+    
+    def detect_frame(self, device: int, timestamp: int = -1):
+        if timestamp != -1:
+            self.try_add_device(device)
+            self.devices[device].try_add_frame(timestamp)
+        observed_person_list = self.devices[device].detect_frame(timestamp)
+        self.process_person_data(observed_person_list, timestamp)
     
     def try_add_device(self, device: int):
         if not(device in self.devices.keys()):

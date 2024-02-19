@@ -4,6 +4,8 @@ import math
 
 import numpy as np
 
+from scipy.spatial.transform import Rotation as R
+
 def to_degree(radian):
     return radian / 3.14159 * 180
 
@@ -39,7 +41,13 @@ def calc_angle(vector, angle_type="yz"):
     elif angle_type == "y":
         return np.arctan2(vector[1], vector[0]) # Right Landmark -> Left Landmark
     # If the observee faces toward user to its left (right for observer), Right->Left (Left - right) generate positive result exactly cooresponding to its rotation angle
-    
+
+def get_inv_transformation_of_point(point: np.ndarray, origin_local_position: np.ndarray, origin_local_rotation: np.ndarray):
+    point_moved = point - origin_local_position
+    rot_matrix = R.from_euler("zxy",[0, 0, -origin_local_rotation[1] + 82],True).as_matrix()
+    point_rotated = np.matmul(rot_matrix, point_moved)
+    return point_rotated + [0,0,2.85]
+
 def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     if session_folder.split("/")[-1].split("_")[0] != "Session":
         return None
@@ -60,11 +68,28 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     return device_timestamp_dict
     
 def get_pose_from_timestamp(session_folder: str, device: int, timestamp: int) -> np.ndarray:
-    return np.load(session_folder + "/" + str(device) + "/" + str(int(timestamp/1000000)) + "/" + str(timestamp) + "_pose.sci.npy")
+    coordinate = np.load(session_folder + "/" + str(device) + "/" + str(int(timestamp/1000000)) + "/" + str(timestamp) + "_pose.sci.npy")
+    #coordinate[0] = get_inv_transformation_of_point(coordinate[0], coordinate[2], coordinate[3])
+    return coordinate
 
 def get_ab_image_from_timestamp(session_folder: str, device: int, timestamp: int):
     return session_folder + "/" + str(device) + "/" + str(int(timestamp/1000000)) + "/" + str(timestamp) + "_ab_image.png"
 
+def get_nearest_point_dist_sq(x: float, y: float, path: list[list[float]]) -> float:
+    min_dist = 65535
+    for x_path, y_path in zip(path[0],path[1]):
+            dist = (x - x_path)**2 + (y - y_path)**2
+            if dist < min_dist:
+                min_dist = dist
+    return min_dist
+    
+def get_path_rmse(path_predict: list[list[float]], path_actual: list[list[float]]) -> float:
+    pt_count = len(path_predict[0])
+    sum_error = 0
+    for x, y in zip(path_predict[0], path_predict[1]):
+        sum_error += get_nearest_point_dist_sq(x, y, path_actual)
+    return math.sqrt(sum_error/pt_count)
+    
 class Vector3D:
     def __init__(self, x = 0, y = 0, z = 0, vector = [0,0,0]) -> None:
         if (vector != [0,0,0]):
