@@ -31,6 +31,7 @@ class Session:
     prev_result: dict[int, Person] = {}
     prev_timestamp: int = 0
     predicted_slope: dict[int, np.ndarray] = {}
+    last_successful_timestamp = 0
     
     # session_folder: The Folder of the session, use_secondary_tracking: if DVIO method is employed, immediate_detection: if detection happens immediately after adding frame
     def __init__(self, session_folder, use_secondary_tracking = True, immediate_detection = False) -> None:
@@ -117,9 +118,10 @@ class Session:
                     print(predicted_result)
                     print(person.coordinate)
                     # The data point is only regarded as valid when it does not deviate too far from prediction
-                    if Utility.get_3d_distance(predicted_result, person.coordinate) < 1.5:
+                    if Utility.get_3d_distance(predicted_result, person.coordinate) < 1.0 or frame_timestamp - self.last_successful_timestamp > 1000:
                         print("Person regarded as valid")
                         self.observation_history[frame_timestamp][person.id] = person
+                        self.last_successful_timestamp = frame_timestamp
                     else:
                         print("Person regarded as invalid")
                         observed_person_list.remove(person)
@@ -132,7 +134,8 @@ class Session:
                 
                 # Set new previous result based on current frame result
                 self.prev_result[person.id] = person
-                
+            if self.observation_history[frame_timestamp] == {}:
+                self.observation_history.pop(frame_timestamp)  
             # Set previous timestamp as current timestamp (note that we only set timestamp once since every person observed follows the same timestamp)
             self.prev_timestamp = frame_timestamp
                     

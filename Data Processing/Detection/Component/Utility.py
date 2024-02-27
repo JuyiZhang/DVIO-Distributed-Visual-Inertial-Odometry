@@ -5,6 +5,7 @@ import math
 import numpy as np
 
 from scipy.spatial.transform import Rotation as R
+import ipaddress
 
 def to_degree(radian):
     return radian / 3.14159 * 180
@@ -54,6 +55,8 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     all_device = os.listdir(session_folder)
     device_timestamp_dict = {}
     for device in all_device:
+        if device == "Point_Cloud.ply":
+            continue
         all_folder = os.listdir(session_folder + "/" + device)
         timestamp_list = []
         for time_big_folder in all_folder:
@@ -66,7 +69,31 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
                     timestamp_list.append(timestamp)
         device_timestamp_dict[int(device)] = timestamp_list
     return device_timestamp_dict
+
+def save_detection_result_coordinate(timestamp_dict: dict[int, bool], device_dict: dict[int, dict[int, np.ndarray]], person_coordinate_list:list[list[float]], master_pos: list[np.ndarray]):
+    fp = open("result.txt", "w")
+    flag = 0
+    flag_2 = 0
+    fp.write("Timestamp\t")
+    for device in device_dict.keys():
+        fp.write(str(ipaddress.ip_address(device)) + "x\ty\t" + "Distance to master" + "\t")
+    fp.write("Detect Position x\ty\n")
+    for timestamp, person_found in timestamp_dict.items():
+        fp.write(str(timestamp) + "\t")
+        
+        master_position_timestamp = np.array([master_pos[flag_2][0], master_pos[flag_2][2]])
+        print(master_position_timestamp)
+        for device_name, coordinate in device_dict.items():
+            fp.write(str(coordinate[timestamp][0]) + "\t" + str(coordinate[timestamp][1]) + "\t")
+            fp.write(str(get_2d_distance(coordinate[timestamp], master_position_timestamp)) + "\t")
+        flag_2 += 1
+        if person_found:  
+            fp.write(str(person_coordinate_list[flag][0]) + "\t" + str(person_coordinate_list[flag][1]) + "\n")
+            flag += 1
+        else:
+            fp.write("\n")
     
+
 def get_pose_from_timestamp(session_folder: str, device: int, timestamp: int) -> np.ndarray:
     coordinate = np.load(session_folder + "/" + str(device) + "/" + str(int(timestamp/1000000)) + "/" + str(timestamp) + "_pose.sci.npy")
     #coordinate[0] = get_inv_transformation_of_point(coordinate[0], coordinate[2], coordinate[3])

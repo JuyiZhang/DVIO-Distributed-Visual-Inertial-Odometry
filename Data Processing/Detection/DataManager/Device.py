@@ -7,7 +7,7 @@ import Component.DetectionManager as DetectionManager
 from DataManager.Person import Person
 from DataManager.Frame import Frame
 from scipy.spatial.transform import Rotation as R
-
+from DataManager.PointCloud import PointCloud
 class Device:
     
     latest_processed_image: str = ""
@@ -16,6 +16,7 @@ class Device:
     def __init__(self, id: int, session_folder: str) -> None:
         self.id = id
         self.session_folder = session_folder
+        self.point_cloud = PointCloud(session_folder)
         self.all_frames_position_device: dict[int, Person] = {}
         self.all_frames: dict[int, Frame] = {}
         self.transf_matrix: np.ndarray = None
@@ -34,6 +35,11 @@ class Device:
         self.all_frames_position_device[timestamp] = Person(coordinate=self.current_frame.pose.tolist(), id=self.id)
         self.all_frames[timestamp] = self.current_frame
         self.latest_raw_image = self.current_frame.ab_image
+    
+    def generate_point_cloud(self):
+        for frame in self.all_frames.values():
+            self.point_cloud.add_point_cloud_data(frame)
+        return self.point_cloud.get_point_cloud_data_for_display()
     
     def detect_frame(self, timestamp: int = -1) -> list[Person]:
         if self.detection_flag:

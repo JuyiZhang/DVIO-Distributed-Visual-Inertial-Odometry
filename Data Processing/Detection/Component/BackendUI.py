@@ -27,6 +27,7 @@ from Component.QMatplot import QMatplot
 from Component.SessionManager import Session
 
 import ctypes
+import open3d as o3d
 myappid = 'com.arkr.mutabe' # arbitrary string
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
@@ -45,11 +46,12 @@ class app_window(QMainWindow):
     device_checkbox_dict: dict[int, QCheckBox] = {}
     device_timestamp_dict_global: dict[int, int] = {}
     predict_traj: list[list[float]] = []
-    actual_traj: list[list[float]] = []
+    actual_traj: dict[int,dict[int,np.ndarray]] = {}
     data: dict[int, int] = None
     device_address_update: bool = False
     capture_image_update: bool = False
     device_connected: bool = False
+    position_master: list[np.ndarray] = []
     
     # 2 people dataset: 1706868603698
     def __init__(self, *args, **kwargs):
@@ -57,6 +59,7 @@ class app_window(QMainWindow):
         super().__init__(*args, **kwargs)
         manager = Manager()
         self.device_timestamp_dict = manager.dict()
+        self.timestamp_detection_dict: dict[int, bool] = {}
         self.direct_feed = True
         self.session = None
         
@@ -86,14 +89,18 @@ class app_window(QMainWindow):
         load_session_action.triggered.connect(self.load_session)
         save_session_action = QAction("&Save Config", self)
         save_session_action.triggered.connect(self.save_session)
-        save_result_action = QAction("&Save Result", self)
+        save_result_action = QAction("&Save Result Plot", self)
         save_result_action.triggered.connect(self.save_figure)
+        save_result_data_action = QAction("&Save Result Data", self)
+        save_result_data_action.triggered.connect(self.save_result)
         save_file_action = QAction("&Save Raw Data", self, checkable=True)
         save_file_action.triggered.connect(self.set_save_data)
         file_menu.addAction(load_session_action)
         file_menu.addAction(save_session_action)
         file_menu.addAction(save_result_action)
+        file_menu.addAction(save_result_data_action)
         file_menu.addAction(save_file_action)
+        
         
         edit_menu = QMenu("&Edit", self)
         menu_bar.addMenu(edit_menu)
@@ -324,6 +331,9 @@ class app_window(QMainWindow):
     def save_figure(self):
         self.result_plot.figure.savefig("result_plot.png", transparent=False)
     
+    def save_result(self):
+        Utility.save_detection_result_coordinate(self.timestamp_detection_dict, self.actual_traj, self.predict_traj, self.position_master)
+    
     def set_save_data(self):
         self.direct_feed = not(self.sender().isChecked())
     
@@ -409,16 +419,21 @@ class app_window(QMainWindow):
         self.session.try_add_device(self.detection_device)
         self.session.set_main_device(self.detection_device)
         self.secondary_device: list[Device] = []
+        
         for device, timestamp_list in self.device_timestamp_list_dict.items():
             if device == self.detection_device:
                 continue
             self.session.try_add_device(device)
             for timestamp in timestamp_list:
-                
                 self.session.new_frame(timestamp, device)
             self.secondary_device.append(self.session.devices[device])
-            
-            
+            self.actual_traj[device] = {}
+
+        """point_cloud = self.secondary_device[0].generate_point_cloud()
+        self.point_cloud_window = o3d.visualization.Visualizer()
+        self.point_cloud_window.create_window()
+        self.point_cloud_window.add_geometry(point_cloud)"""
+        
         timestamp_count = len(self.device_timestamp_list_dict[self.detection_device])
         timestamp_str_list = []
         for timestamp in self.device_timestamp_list_dict[self.detection_device]:
@@ -484,32 +499,36 @@ class app_window(QMainWindow):
         progress = (self.timestamp_detection_index - self.timestamp_range_lower_index) * 100 / (self.timestamp_range_upper_index - self.timestamp_range_lower_index)
         self.set_progress_indicator(int(progress), "Detecting frame " + str(timestamp_detection))
         self.session.detect_frame(self.detection_device, timestamp_detection)
-        person_coordinate: list[list[float]] = [[],[]]
-        device_coordinate: dict[int, np.ndarray] = {} # Device name : 2*n float matrix of points
+        self.timestamp_detection_dict[timestamp_detection] = False
+        person_coordinate: list[list[float]] = []
+        device_coordinate: dict[int, list[np.ndarray]] = {} # Device name : 2*n float matrix of points
         for device in self.secondary_device:
-            device_coordinate[device.id] = np.array([])
+            device_3d_coordinate = device.get_device_transform_at_timestamp(timestamp_detection)
+            self.actual_traj[device.id][timestamp_detection] = np.array([device_3d_coordinate[0], device_3d_coordinate[2]])
         anchor_coordinate_main_device = self.session.devices[self.detection_device].current_frame.pose
-        position_master = anchor_coordinate_main_device[0]#Utility.get_inv_transformation_of_point(anchor_coordinate_main_device[0], anchor_coordinate_main_device[2], anchor_coordinate_main_device[3])
+        self.position_master.append(anchor_coordinate_main_device[0])#Utility.get_inv_transformation_of_point(anchor_coordinate_main_device[0], anchor_coordinate_main_device[2], anchor_coordinate_main_device[3])
         for timestamp, person_dict in self.session.observation_history.items():
-            for device in self.secondary_device:
-                device_3d_coordinate = device.get_device_transform_at_timestamp(timestamp)
-                device_coordinate[device.id] = np.append(device_coordinate[device.id], [device_3d_coordinate[0], device_3d_coordinate[2]]).reshape(-1,2)
             for person_id, person in person_dict.items():
                 converted_coordinate = person.coordinate#Utility.get_inv_transformation_of_point(person.coordinate, anchor_coordinate_main_device[2], anchor_coordinate_main_device[3])
-                person_coordinate[0].append(converted_coordinate[0])
-                person_coordinate[1].append(-converted_coordinate[2])
+                person_coordinate.append([converted_coordinate[0],-converted_coordinate[2]])
+                self.timestamp_detection_dict[timestamp] = True
                 break
+        for device_id, position_dict in self.actual_traj.items():
+            device_coordinate[device_id] = []
+            for timestamp, position in position_dict.items():
+                device_coordinate[device_id].append(position)
+            
         self.result_plot.aces.clear()
-        self.result_plot.aces.plot(person_coordinate[0], person_coordinate[1], '-o', label="MuTA Result")
-        for device_id, device_pos in device_coordinate.items():
-            self.result_plot.aces.plot(device_pos[:,0], device_pos[:,1], '-o', label="HoloLens " + str(ipaddress.ip_address(device_id)))
-        self.result_plot.aces.plot(position_master[0], position_master[2], '-o', label="Master Device")
+        if len(person_coordinate) != 0:
+            self.result_plot.aces.plot(np.array(person_coordinate)[:,0], np.array(person_coordinate)[:,1], '-o', label="MuTA Result")
+            for device_id, device_pos in device_coordinate.items():
+                self.result_plot.aces.plot(np.array(device_pos)[:,0], np.array(device_pos)[:,1], '-o', label="HoloLens " + str(ipaddress.ip_address(device_id)))
+        self.result_plot.aces.plot(np.array(self.position_master)[:,0], np.array(self.position_master)[:,2], '-o', label="Master Device")
         self.result_plot.aces.set_xlabel("Position x (m)")
         self.result_plot.aces.set_ylabel("Position y (m)")
         self.result_plot.aces.legend()
         self.result_plot.draw()
         self.predict_traj = person_coordinate
-        self.actual_traj = device_coordinate
         self.timestamp_detection_index += 1
         if (self.timestamp_detection_index > self.timestamp_range_upper_index + 1):
             self.timestamp_detection_index = self.timestamp_range_lower_index

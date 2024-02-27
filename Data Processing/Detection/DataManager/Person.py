@@ -40,7 +40,16 @@ class Person:
             elif self.keypoints["Shoulder Center"].validity:
                 print("Use shoulder center as reference")
                 return self.keypoints["Shoulder Center"].coordinate_3d
-        
+            
+        for priority_str in validity_priority:
+            if self.keypoints["Left "+priority_str].validity:
+                print("Use left as reference " + priority_str)
+                return self.keypoints["Left "+priority_str].coordinate_3d
+            elif self.keypoints["Right "+priority_str].validity:
+                print("Use right as reference " + priority_str)
+                return self.keypoints["Right "+priority_str].coordinate_3d
+        print(self.keypoints["Left Shoulder"].validity)
+        print(self.keypoints["Right Shoulder"].validity)
         return np.array([])
     
     def get_pos_rot(self):
