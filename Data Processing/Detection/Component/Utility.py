@@ -35,9 +35,11 @@ def calc_angle(vector, angle_type="yz"):
         x = vector[0]
         y = vector[1]
         z = vector[2]
-        rot_angle_y = np.arctan(-z,x)
+        print(z)
+        print(x)
+        rot_angle_y = np.arctan2(-z,x)
         xz = np.linalg.norm((x,z))
-        rot_angle_x = np.arctan(y, xz)
+        rot_angle_x = np.arctan2(y, xz)
         return (rot_angle_y, rot_angle_x)
     elif angle_type == "y":
         return np.arctan2(vector[1], vector[0]) # Right Landmark -> Left Landmark

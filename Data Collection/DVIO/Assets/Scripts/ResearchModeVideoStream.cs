@@ -48,6 +48,7 @@ public class ResearchModeVideoStream : MonoBehaviour
 
     private Vector3 cameraPosition = new Vector3();
     private Vector3 cameraFrontDirection = new Vector3();
+    private UInt64 timestamp = 0;
 
     
 
@@ -156,7 +157,7 @@ public class ResearchModeVideoStream : MonoBehaviour
         {
             if (researchMode.LongThrowPointCloudUpdated()){
                 pointCloud = researchMode.GetLongThrowPointCloudBuffer();
-                
+                timestamp = researchMode.GetTimestamp();
                 float[] headPos = researchMode.GetHeadPosition();
                 float[] headFwdDir = researchMode.GetHeadForwardVector();
                 cameraPosition.Set(headPos[0], headPos[1], headPos[2]);
@@ -179,7 +180,6 @@ public class ResearchModeVideoStream : MonoBehaviour
         Vector3 currentRotation = cameraFrontDirection;
 
 #if WINDOWS_UWP
-        long timestamp = GetCurrentTimestampUnix();
         var depthMap = researchMode.GetLongDepthMapBuffer();
         if (tcpClient != null)
         {

@@ -274,12 +274,15 @@ class app_window(QMainWindow):
         detect = QAction("Detect Frame")
         set_start = QAction("Set Start Frame")
         set_end = QAction("Set End Frame")
+        save_view = QAction("Save Tree View")
         detect.triggered.connect(self.detect_frame)
         set_start.triggered.connect(self.set_timestamp_start)
         set_end.triggered.connect(self.set_timestamp_end)
+        save_view.triggered.connect(self.save_tree_view)
         context_menu.addAction(detect)
         context_menu.addAction(set_start)
         context_menu.addAction(set_end)
+        context_menu.addAction(save_view)
         context_menu.exec_(self.tree_widget.mapToGlobal(event))
     
     def detect_frame(self):
@@ -301,6 +304,19 @@ class app_window(QMainWindow):
         sender: QTreeWidgetItem = self.tree_widget.selectedItems()[0]
         sel_index = sender.parent().indexOfChild(sender)
         self.timestamp_range_input_upper.setCurrentIndex(sel_index)
+        
+    def save_tree_view(self):
+        fp = open("tree_view.txt","w")
+        for i in range(0,self.tree_widget.topLevelItemCount()):
+            device_item = self.tree_widget.topLevelItem(i)
+            for j in range(0, device_item.childCount()):
+                timestamp_item = device_item.child(j)
+                fp.write(device_item.text(0))
+                for k in range(0, timestamp_item.columnCount()):
+                    fp.write("\t" + timestamp_item.text(k))
+                fp.write("\n")
+        fp.close()
+                
     
     def add_widget_to_layout_batch(self, widgets: list[QWidget], direction_horizontal: bool = True):
         layout_widget = QWidget()
