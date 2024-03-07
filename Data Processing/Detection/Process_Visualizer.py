@@ -54,7 +54,7 @@ class visualizer(ShowBase):
     
     def anim_Task(self, task):
         rot_fov_single_side = 10
-        point_cloud_move_factor = 0.3
+        point_cloud_move_factor = 1
         if self.anim_progress < self.anim_end:
             if self.anim_progress == 0:
                 self.camera.setPos(-self.camera_position[0],-self.camera_position[2]-6,self.camera_position[1])
@@ -63,8 +63,12 @@ class visualizer(ShowBase):
             self.camera.setH(camera_h)
             for i in range(0, int(len(self.point_cloud)/self.lod)):
                 coordinate = i*self.lod
-                
-                point_progress_factor = 1 - self.anim_progress/self.anim_end
+                if self.anim_progress < self.point_anim_range[i][0]: 
+                    point_progress_factor = 0
+                elif self.anim_progress > self.point_anim_range[i][1]:
+                    point_progress_factor = 1
+                else:
+                    point_progress_factor = 1 - (self.anim_progress-self.point_anim_range[i][0])/int(self.point_anim_time*self.frame_rate)
                 point_cloud_pos = self.point_cloud_normals[coordinate]*point_cloud_move_factor*point_progress_factor + self.point_cloud[coordinate]
                 self.point_cloud_obj[i].setPos(-point_cloud_pos[0], -point_cloud_pos[2], point_cloud_pos[1])
             self.anim_progress += 1
@@ -83,8 +87,8 @@ class visualizer(ShowBase):
     def create_point_cloud(self):
         for i in range(0, int(len(self.point_cloud)/self.lod)):
             last_point_start_frame = self.last_point_start_delay*self.frame_rate # 120
-            point_start_frame = int((i/int(len(self.point_cloud)/self.lod))*(0-last_point_start_frame))
-            self.point_anim_range.append()
+            point_start_frame = int((i/int(len(self.point_cloud)/self.lod))*(last_point_start_frame-0))
+            self.point_anim_range.append((point_start_frame, point_start_frame+int(self.point_anim_time*self.frame_rate)))
             coordinate = i*self.lod
             point = self.point_cloud[coordinate]
             y = int(coordinate/320)
