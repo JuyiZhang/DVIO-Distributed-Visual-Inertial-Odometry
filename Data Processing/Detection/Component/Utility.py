@@ -5,6 +5,7 @@ import math
 import numpy as np
 
 from scipy.spatial.transform import Rotation as R
+import open3d as o3d
 import ipaddress
 
 def to_degree(radian):
@@ -23,11 +24,32 @@ def generate_random_color(normalized=False):
     c = random.randint(100,255)/(255 if normalized else 1)
     return (a, b, c)
 
+def vector_angle(vector1: np.ndarray, vector2: np.ndarray):
+    return np.arctan2(vector1[2], vector1[0]) - np.arctan2(vector2[2], vector2[0])
+
 def get_2d_distance(vector1, vector2):
     return math.sqrt((vector1[0] - vector2[0])**2 + (vector1[1] - vector2[1])**2)
 
 def get_3d_distance(vector1, vector2, ignore_y = True):
     return math.sqrt((vector1[0] - vector2[0])**2 + (vector1[2] - vector2[2])**2)
+
+def rotation_matrix(rot_angle_y: float):
+    return R.from_rotvec([0,rot_angle_y,0]).as_matrix()
+
+def fast_registration(point_cloud_target, point_cloud_subject):
+    fpfh_search_radius = 0.5
+    distance_threshold = fpfh_search_radius/10
+    target_fpfh = o3d.pipelines.registration.compute_fpfh_feature(point_cloud_target, o3d.geometry.KDTreeSearchParamHybrid(radius=fpfh_search_radius, max_nn=100))
+    subject_fpfh = o3d.pipelines.registration.compute_fpfh_feature(point_cloud_subject, o3d.geometry.KDTreeSearchParamHybrid(radius=fpfh_search_radius, max_nn=100))
+    registration_result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(point_cloud_subject, point_cloud_target, subject_fpfh, target_fpfh, o3d.pipelines.registration.FastGlobalRegistrationOption(
+            maximum_correspondence_distance=distance_threshold))
+    return registration_result.transformation
+
+def get_offset(transformation_matrix):
+    transformation = np.array(transformation_matrix)
+    rotation = R.from_matrix(transformation[0:3,0:3]).as_rotvec(True)
+    translation = transformation[0:3,3]
+    return rotation, translation
 
 def calc_angle(vector, angle_type="yz"):
     
@@ -45,11 +67,14 @@ def calc_angle(vector, angle_type="yz"):
         return np.arctan2(vector[1], vector[0]) # Right Landmark -> Left Landmark
     # If the observee faces toward user to its left (right for observer), Right->Left (Left - right) generate positive result exactly cooresponding to its rotation angle
 
-def get_inv_transformation_of_point(point: np.ndarray, origin_local_position: np.ndarray, origin_local_rotation: np.ndarray):
-    point_moved = point - origin_local_position
-    rot_matrix = R.from_euler("zxy",[0, 0, -origin_local_rotation[1] + 82],True).as_matrix()
+def get_inv_transformation_of_point(point: np.ndarray, origin_local_position: np.ndarray = None, origin_local_rotation: np.ndarray = None, adj_rot = 0, adj_x = 0, adj_z = 0):
+    point_moved = point # + origin_local_position
+    origin_local_rotation_y = 0 #-origin_local_rotation[1]
+    rot_matrix = R.from_rotvec([0, origin_local_rotation_y + adj_rot, 0], True).as_matrix()
     point_rotated = np.matmul(rot_matrix, point_moved)
-    return point_rotated + [0,0,2.85]
+    #disp_rotated = np.matmul(rot_matrix, )
+    #print(disp_rotated)
+    return point_rotated + [adj_x,0,adj_z]
 
 def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     if session_folder.split("/")[-1].split("_")[0] != "Session":
@@ -57,7 +82,7 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     all_device = os.listdir(session_folder)
     device_timestamp_dict = {}
     for device in all_device:
-        if device == "Point_Cloud.ply":
+        if "Point_Cloud" in device:
             continue
         all_folder = os.listdir(session_folder + "/" + device)
         timestamp_list = []
@@ -72,8 +97,8 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
         device_timestamp_dict[int(device)] = timestamp_list
     return device_timestamp_dict
 
-def save_detection_result_coordinate(timestamp_dict: dict[int, bool], device_dict: dict[int, dict[int, np.ndarray]], person_coordinate_list:list[list[float]], master_pos: list[np.ndarray]):
-    fp = open("result.txt", "w")
+def save_detection_result_coordinate(filename, timestamp_dict: dict[int, bool], device_dict: dict[int, dict[int, np.ndarray]], person_coordinate_list:list[list[float]], master_pos: list[np.ndarray]):
+    fp = open(filename, "w")
     flag = 0
     flag_2 = 0
     fp.write("Timestamp\t")

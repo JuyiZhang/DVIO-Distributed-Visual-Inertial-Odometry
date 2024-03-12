@@ -13,7 +13,7 @@ detection_segment = TrackSegment()
 # Output: Person Object
 def pose_estimation(frame: Frame, enable_3d_pose = False) -> list[Person]:
     # Grab AB Image from Hololens Capture Frame
-    image = frame.ab_image
+    image = frame.ab_image.copy()
     cv2.convertScaleAbs(image, image, 2, -64)
     # Segmentation and obtain result
     result_seg = detection_segment(image)

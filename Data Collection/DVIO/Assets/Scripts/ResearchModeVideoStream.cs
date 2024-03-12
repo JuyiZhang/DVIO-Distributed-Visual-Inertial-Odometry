@@ -157,8 +157,10 @@ public class ResearchModeVideoStream : MonoBehaviour
         {
             if (researchMode.LongThrowPointCloudUpdated()){
                 pointCloud = researchMode.GetLongThrowPointCloudBuffer();
-                timestamp = researchMode.GetTimestamp();
+                timestamp = researchMode.GetTimeStamp();
                 float[] headPos = researchMode.GetHeadPosition();
+                Debug.Log(headPos);
+                Debug.Log(Camera.main.transform.position);
                 float[] headFwdDir = researchMode.GetHeadForwardVector();
                 cameraPosition.Set(headPos[0], headPos[1], headPos[2]);
                 cameraFrontDirection.Set(headFwdDir[0], headFwdDir[1], headFwdDir[2]);
@@ -183,7 +185,7 @@ public class ResearchModeVideoStream : MonoBehaviour
         var depthMap = researchMode.GetLongDepthMapBuffer();
         if (tcpClient != null)
         {
-            tcpClient.SendLongDepthSensorCombined(depthMap, longAbImageFrameData, pointCloud, timestamp, currentRotation, currentPosition, anchorEuler, anchorPosition);
+            tcpClient.SendLongDepthSensorCombined(depthMap, longAbImageFrameData, pointCloud, (long)timestamp, currentRotation, currentPosition, anchorEuler, anchorPosition);
         }
 #endif
     }

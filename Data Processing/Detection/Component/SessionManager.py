@@ -45,11 +45,8 @@ class Session:
     def new_frame(self, timestamp: int, device: int, frame: Frame = None):
         
         self.devices[device].try_add_frame(timestamp, frame)
-        
-        if (self.immediate_detection):
-            self.detect_frame(device)
             
-        if (device == self.main_device):
+        if (device == self.main_device and not self.immediate_detection):
             # Updating frame for primary device
             self.master_frame_updated = True
             self.detection_flag = True

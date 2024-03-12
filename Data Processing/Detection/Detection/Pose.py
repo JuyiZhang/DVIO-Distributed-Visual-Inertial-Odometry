@@ -16,7 +16,7 @@ class DetectPose:
     
     timestamp_keypoint_dict = {}
     
-    def __init__(self, model_size="full", confidence = 0.20) -> None:
+    def __init__(self, model_size="full", confidence = 0.10) -> None:
         options = PoseLandmarkerOptions(
             base_options = BaseOptions(model_asset_path = "model/pose_landmarker_" + model_size + ".task"),
             running_mode = VisionRunningMode.IMAGE,
@@ -25,11 +25,10 @@ class DetectPose:
             min_pose_detection_confidence = confidence,
             min_pose_presence_confidence = confidence,
             min_tracking_confidence = confidence,
-            result_callback = self.process_result_and_send
         )
         self.landmarker = PoseLandmarker.create_from_options(options)
     
-    def __call__(self, ab_image, keypoints):
+    def __call__(self, ab_image, keypoints = None):
         
         mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data=ab_image)
         result = self.landmarker.detect(mp_image)
@@ -37,8 +36,12 @@ class DetectPose:
         if len(result.pose_landmarks) == 0:
             Debug.Log("Person not detected")
             return
-
-        person_id = self.assign_person_id(result.pose_landmarks, keypoints)   
+        print(result)
+        
+        if (keypoints != None):
+            person_id = self.assign_person_id(result.pose_landmarks, keypoints)  
+        else:
+            person_id = None 
         armature = self.armature_transform_from_world_landmark(result.pose_world_landmarks)
         return person_id, armature
         

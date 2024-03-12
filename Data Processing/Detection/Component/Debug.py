@@ -3,7 +3,7 @@ import time
 global prev_time
 prev_time = time.time()
 debug_mode = True
-filter_category = ["Conn", "Frame", "Detection"]
+filter_category = ["Conn", "Frame", "Detection", "PointCloud"]
 
 #fp = open("log/Session_"+str(int(time.time()))+".log","a")
 
