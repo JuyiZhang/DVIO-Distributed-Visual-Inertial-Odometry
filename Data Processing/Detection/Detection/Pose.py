@@ -18,7 +18,7 @@ class DetectPose:
     
     def __init__(self, model_size="full", confidence = 0.10) -> None:
         options = PoseLandmarkerOptions(
-            base_options = BaseOptions(model_asset_path = "model/pose_landmarker_" + model_size + ".task"),
+            base_options = BaseOptions(model_asset_path = "Model/pose_landmarker_" + model_size + ".task"),
             running_mode = VisionRunningMode.IMAGE,
             num_poses = 10,
             output_segmentation_masks = True,

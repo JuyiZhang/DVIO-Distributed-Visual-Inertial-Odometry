@@ -80,14 +80,19 @@ def list_all_device_timestamp(session_folder: str) -> dict[int, list[int]]:
     if session_folder.split("/")[-1].split("_")[0] != "Session":
         return None
     all_device = os.listdir(session_folder)
+    all_device.sort()
     device_timestamp_dict = {}
     for device in all_device:
-        if "Point_Cloud" in device:
+        if "Point_Cloud" in device or device == ".DS_Store":
             continue
         all_folder = os.listdir(session_folder + "/" + device)
+        all_folder.sort()
         timestamp_list = []
         for time_big_folder in all_folder:
+            if time_big_folder == ".DS_Store":
+                continue
             all_file = os.listdir(session_folder + "/" + device + "/" + time_big_folder)
+            all_file.sort()
             for file_name in all_file:
                 timestamp = int(file_name.split("_")[0])
                 if "master_pose" in file_name:
@@ -108,17 +113,18 @@ def save_detection_result_coordinate(filename, timestamp_dict: dict[int, bool], 
     for timestamp, person_found in timestamp_dict.items():
         fp.write(str(timestamp) + "\t")
         
-        master_position_timestamp = np.array([master_pos[flag_2][0], master_pos[flag_2][2]])
-        print(master_position_timestamp)
+        #master_position_timestamp = np.array([master_pos[flag_2][0], master_pos[flag_2][2]])
+        #print(master_position_timestamp)
         for device_name, coordinate in device_dict.items():
             fp.write(str(coordinate[timestamp][0]) + "\t" + str(coordinate[timestamp][1]) + "\t")
-            fp.write(str(get_2d_distance(coordinate[timestamp], master_position_timestamp)) + "\t")
+            #fp.write(str(get_2d_distance(coordinate[timestamp], master_position_timestamp)) + "\t")
         flag_2 += 1
         if person_found:  
             fp.write(str(person_coordinate_list[flag][0]) + "\t" + str(person_coordinate_list[flag][1]) + "\n")
             flag += 1
         else:
             fp.write("\n")
+    fp.close()
     
 
 def get_pose_from_timestamp(session_folder: str, device: int, timestamp: int) -> np.ndarray:

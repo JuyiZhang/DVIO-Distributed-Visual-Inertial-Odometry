@@ -38,9 +38,10 @@ class visualizer(ShowBase):
     
     def frame_data(self):
         trial_session = Session("data/Session_1706868542", immediate_detection=True)
-        trial_session.try_add_device(168102881)
-        trial_session.new_frame(1706868625406, 168102881)
-        frame = trial_session.devices[trial_session.main_device].all_frames[1706868625406]
+        trial_session.try_add_device(168099955)
+        trial_session.new_frame(1706868608225, 168099955)
+        frame = trial_session.devices[trial_session.main_device].all_frames[1706868608225]
+        trial_session.detect_frame(168099955, 1706868608225)
         self.abimage = frame.ab_image
         self.posedetector = DetectPose()
         self.posedetector(self.abimage)

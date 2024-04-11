@@ -29,7 +29,7 @@ from Component.SessionManager import Session
 import ctypes
 import open3d as o3d
 myappid = 'com.arkr.mutabe' # arbitrary string
-ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+#ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 
 class WorkerThread(QThread):
@@ -422,12 +422,12 @@ class app_window(QMainWindow):
     
     def sel_session_dir(self):
         self.session_folder = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
-        self.combobox.setCurrentText(self.session_folder)
+        self.combobox.setCurrentText(self.session_folder.split("/")[-1])
         self.set_progress_indicator(30, "Loading Directory List")
         self.load_directory()
     
-    def sel_session(self, session_name):
-        self.session_folder = "data/" + session_name
+    def sel_session(self, session_name: str):
+        self.session_folder = "data/" + session_name.split("/")[-1]
         self.set_progress_indicator(30, "Loading Directory List")
         self.load_directory()
     
@@ -579,7 +579,6 @@ class app_window(QMainWindow):
         progress = (self.timestamp_detection_index - self.timestamp_range_lower_index) * 100 / (self.timestamp_range_upper_index - self.timestamp_range_lower_index)
         self.set_progress_indicator(int(progress), "Detecting frame " + str(timestamp_detection))
         self.session.detect_frame(self.detection_device, timestamp_detection)
-        print(self.session.observation_history)
         self.timestamp_detection_dict[timestamp_detection] = False
         person_coordinate: list[list[float]] = []
         device_coordinate: dict[int, list[np.ndarray]] = {} # Device name : 2*n float matrix of points
@@ -627,7 +626,6 @@ class app_window(QMainWindow):
             for device_id, device_pos in device_coordinate.items():
                 if (len(device_pos) != 0):
                     if (self.device_coordinate_line.__contains__(device_id)):
-                        print(type(self.device_coordinate_line[device_id]))
                         self.device_coordinate_line[device_id].set_data(np.array(device_pos)[:,0], -np.array(device_pos)[:,1])
                         self.device_coordinate_line[device_id].set_3d_properties(np.array(device_pos)[:,2])
                     else:

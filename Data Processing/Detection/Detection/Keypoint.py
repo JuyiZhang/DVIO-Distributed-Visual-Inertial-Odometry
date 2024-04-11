@@ -7,6 +7,8 @@ import Component.Debug as Debug
 import ultralytics
 from ultralytics.engine.results import Results
 
+from Detection.Vector3 import Vector3
+
 # Define keypoint
 class GetKeypoint(BaseModel):
     NOSE:           int = 0
@@ -100,9 +102,13 @@ class TrackKeypoint:
 
 class Keypoint:
     
-    def __init__(self, coordinate_2d: tuple, frame: Frame, person_segment, rotation = None) -> None:
+    def __init__(self, coordinate_2d: tuple, frame: Frame, person_segment, rotation = None, rel_3d_coordinate: Vector3 = None) -> None:
         self.x = coordinate_2d[0] - 1
         self.y = coordinate_2d[1] - 1
+        if rel_3d_coordinate is not None:
+            self.rel_3d_coordinate = rel_3d_coordinate
+        else:
+            self.rel_3d_coordinate = None
         self.coordinate_3d = frame.get_coordinate_of(self.x, self.y)
         self.rotation = rotation
         self.validity = self.get_validity(person_segment, self.coordinate_3d, coordinate_2d, frame.get_position())
@@ -131,5 +137,8 @@ class Keypoint:
         if self.x == -1 or other.x == -1:
             return (-1,-1)
         return (int((self.x + other.x)/2), int((self.y + other.y)/2))
+    
+    def Vector3(self):
+        return Vector3(self.coordinate_3d[0], self.coordinate_3d[1], self.coordinate_3d[2])
     
     

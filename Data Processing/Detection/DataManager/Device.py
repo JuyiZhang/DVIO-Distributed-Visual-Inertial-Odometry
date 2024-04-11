@@ -28,6 +28,7 @@ class Device:
         self.detection_flag: bool = False
         self.detect_data_ready: bool = False
         self.current_frame: Frame = None
+        self.confidence: dict[int, float] = {} # Confidence of the device at timestamp as key
     
     # If frame not exist, add frame, if frame exists, do nothing
     def try_add_frame(self, timestamp: int, frame: Frame = None):
@@ -37,9 +38,31 @@ class Device:
             self.current_frame = frame
         else:
             self.current_frame = Frame(timestamp, self.id, self.session_folder)
-        self.all_frames_position_device[timestamp] = Person(coordinate=self.current_frame.pose.tolist(), id=self.id)
+        self.all_frames_position_device[timestamp] = Person(coordinate=self.current_frame.pose.tolist(), id=self.id, confidence=1)
         self.all_frames[timestamp] = self.current_frame
+        self.confidence[timestamp] = 1.0
         self.latest_raw_image = self.current_frame.ab_image
+    
+    def get_timestamp_confidence(self, timestamp: int):
+        prev_frame = 0
+        prev_confidence = 0.0
+        for frame, confidence in self.confidence.items():
+            if frame > timestamp:
+                if (timestamp - prev_frame) < 500 and (frame - timestamp) < 500:
+                    return (prev_confidence - confidence)/(prev_frame - frame) * (timestamp - prev_frame) + prev_confidence
+                elif (timestamp - prev_frame) > 500 and (frame - timestamp) > 500:
+                    return 0
+                elif (timestamp - prev_frame) > (frame - timestamp):
+                    return confidence
+                else:
+                    return prev_confidence
+            prev_frame = frame
+            prev_confidence = confidence
+        return 0
+
+    def set_confidence(self, timestamp: int, confidence: float):
+        self.confidence[timestamp] = confidence
+        self.confidence = {key: val for key, val in sorted(self.confidence.items(), key = lambda ele: ele[0])}
     
     def set_offset(self, rot = 0.0, x = 0.0, z = 0.0, t = None):
         self.rotation_offset = rot
@@ -49,6 +72,14 @@ class Device:
             self.time_offset = t
         Debug.Log("Set offset of device " + str(ipaddress.ip_address(self.id)) + " as " + self.offset_str())
     
+    def get_nearest_timestamp(self, timestamp: int):
+        prev_frame = 0
+        for frame in self.all_frames.keys():
+            if frame > timestamp:
+               return prev_frame if (frame - timestamp) > (timestamp - prev_frame) else frame 
+            prev_frame = frame
+        return prev_frame
+        
     def get_point_with_offset(self, point: np.ndarray):
         return Utility.get_inv_transformation_of_point(point, adj_rot=self.rotation_offset, adj_x=self.displacement_x_offset, adj_z=self.displacement_z_offset)
     
@@ -64,6 +95,8 @@ class Device:
         if self.detection_flag:
             if timestamp == -1:
                 detect_frame = self.current_frame
+            elif timestamp not in self.all_frames.keys():
+                detect_frame = self.all_frames[self.get_nearest_timestamp(timestamp)]
             else:
                 detect_frame = self.all_frames[timestamp]
             detection_result, detection_image_path = DetectionManager.pose_estimation(detect_frame)

@@ -26,6 +26,7 @@ def pose_estimation(frame: Frame, enable_3d_pose = False) -> list[Person]:
     result_kp = detection_keypoint(image)
     keypoints_list = detection_keypoint.get_2d_keypoint(result_kp)
     bounding_box_list = result_kp.boxes.xyxy.cpu()
+    confidence_list = result_kp.boxes.conf.cpu()
     if (keypoints_list is None) or (bounding_box_list is None) or (keypoints_list[0] is None):
         return None, path
     
@@ -37,13 +38,13 @@ def pose_estimation(frame: Frame, enable_3d_pose = False) -> list[Person]:
     # Post processing that creates the skeleton of each person
     person_list = []
     path = result_kp.save_dir + "\\" + result_kp.path
-    for keypoints, bbox, id in zip(keypoints_list[0], bounding_box_list, keypoints_list[1]):
+    for keypoints, bbox, id, confidence in zip(keypoints_list[0], bounding_box_list, keypoints_list[1], confidence_list):
         if (keypoints is None):
             return None, path
         
         # Find the segment corresponding to the person
         person_segment, person_id = correlate_bounding_box(bbox, img_seg)
-        person = Person(keypoints, person_segment, frame, id)
+        person = Person(confidence, keypoints, person_segment, frame, id)
         if person.validity:
             person_list.append(person)
         

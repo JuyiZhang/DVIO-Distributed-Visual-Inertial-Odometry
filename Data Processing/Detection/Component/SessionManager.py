@@ -53,6 +53,12 @@ class Session:
         
         #UDPClient.send_all_pose(self.devices) # TODO change to update device pose
     
+    def calc_position(self, timestamp: int):
+        observed_person_dict = {}
+        for device in self.devices.values():
+            observed_person_dict[device.id] = device.detect_frame(timestamp)
+        self.calculate_scene_person_position(observed_person_dict, timestamp)
+    
     def detect_frame(self, device: int, timestamp: int = -1):
         if timestamp != -1:
             self.try_add_device(device)
@@ -94,18 +100,91 @@ class Session:
                 self.detection_in_process = False
                 self.detection_flag = False
     
+    def calculate_scene_person_position(self, observed_person_dict: dict[int, list[Person]], frame_timestamp: int):
+        self.observation_history[frame_timestamp] = {}
+        current_frame_person_position_observation_dict: dict[int, list[Person]] = {}
+        for device_id in self.devices.keys():
+            current_frame_person_position_observation_dict[device_id] = [Person(confidence=1,coordinate=self.devices[device_id].get_device_transform_at_timestamp(frame_timestamp))]
+        for device_id, person_list in observed_person_dict.items():
+            if person_list is not None:
+                for person in person_list:
+                    person_tracking_confidence = person.confidence
+                    person_depth = person.depth
+                    if person_depth < 0 or person_depth > 5:
+                        person.confidence = 0
+                        continue
+                    elif person_depth > 1.4 or person_depth < 3.6:
+                        depth_factor = 1
+                    else:
+                        depth_factor = 4/abs(2*person_depth-5)-0.8
+                    device_confidence = self.devices[device_id].get_timestamp_confidence(frame_timestamp)
+                    person.confidence = person_tracking_confidence * device_confidence * depth_factor * 0.25
+                    person_found = False
+                    for id, person_observed in current_frame_person_position_observation_dict.items():
+                        if Utility.get_3d_distance(person.coordinate, person_observed.coordinate) < 0.2:
+                            Debug.Log("Matching Observation Result")
+                            current_frame_person_position_observation_dict[id].append(person)
+                            person_found = True
+                            break # Other person will not be matched
+                    if not person_found:
+                        Debug.Log("New Observation Result")
+                        current_frame_person_position_observation_dict[person.id] = [person]
+        for device_id, person_list in current_frame_person_position_observation_dict.items():
+            person_position_total = np.array([0,0,0])
+            person_confidence_total = 0
+            for person in person_list:
+                person_position_total += person.coordinate * person.confidence
+                person_confidence_total += person.confidence
+            if person_confidence_total > 1:
+                person_confidence_total = 1
+            person = Person(coordinate=person_position_total/person_confidence_total, confidence=person_confidence_total)
+            if person.id in self.predicted_slope.keys():
+                    
+                predicted_result = self.predicted_slope[person.id] * (frame_timestamp - self.prev_timestamp) + self.prev_result[person.id].coordinate
+                
+                print(predicted_result)
+                print(person.coordinate)
+                # The data point is only regarded as valid when it does not deviate too far from prediction
+                if len(self.observation_history) < 2 or Utility.get_3d_distance(predicted_result, person.coordinate) < 1.0 or frame_timestamp - self.last_successful_timestamp > 1000:
+                    print("Person regarded as valid")
+                    self.observation_history[frame_timestamp][person.id] = person
+                    self.last_successful_timestamp = frame_timestamp
+                else:
+                    print("Person regarded as invalid due to deviation from prediction")
+                    continue
+            elif len(self.observation_history) < 3:
+                self.observation_history[frame_timestamp][person.id] = person
+                self.last_successful_timestamp = frame_timestamp
+            
+            if person.id in self.prev_result.keys():
+                # Set new predicted slope based on current frame result
+                self.predicted_slope[person.id] = (person.coordinate - self.prev_result[person.id].coordinate) / (frame_timestamp - self.prev_timestamp)
+            
+            
+            # Set new previous result based on current frame result
+            self.prev_result[person.id] = person
+            
+            # Set previous timestamp as current timestamp (note that we only set timestamp once since every person observed follows the same timestamp)
+            self.prev_timestamp = frame_timestamp
+            if device_id in self.devices.keys():
+                self.devices[device_id].set_confidence(frame_timestamp, person_confidence_total)
+        if self.observation_history[frame_timestamp] == {}:
+            self.observation_history.pop(frame_timestamp)  
+        
+                
+            
     def process_person_data(self, observed_person_list: list[Person], frame_timestamp: int):
         if observed_person_list is not None:
             self.observation_history[frame_timestamp] = {}
             # Go over all the person detected
             for person in observed_person_list:
                 # Go over the list of all devices to see if we can match observed user to all the devices
-                """for device_id in self.devices.keys():
+                for device_id in self.devices.keys():
                     device_transform = self.devices[device_id].get_device_transform_at_timestamp(frame_timestamp)
                     if Utility.get_3d_distance(device_transform[0:3], person.coordinate) < 0.2: # If distance is smaller than 0.2
                         Debug.Log("Matching id of " + str(person.id) + " with device id " + str(device_id), category="Detection Important")
                         person.id = device_id
-                        break"""
+                        break
                 # Check coordinate in line with predicted coordinate and predict next coordinate
                 person.id = 0
                 if person.id in self.predicted_slope.keys():
@@ -115,15 +194,18 @@ class Session:
                     print(predicted_result)
                     print(person.coordinate)
                     # The data point is only regarded as valid when it does not deviate too far from prediction
-                    if Utility.get_3d_distance(predicted_result, person.coordinate) < 1.0 or frame_timestamp - self.last_successful_timestamp > 1000:
+                    if len(self.observation_history) < 2 or Utility.get_3d_distance(predicted_result, person.coordinate) < 1.0 or frame_timestamp - self.last_successful_timestamp > 1000:
                         print("Person regarded as valid")
                         self.observation_history[frame_timestamp][person.id] = person
                         self.last_successful_timestamp = frame_timestamp
                     else:
-                        print("Person regarded as invalid")
+                        print("Person regarded as invalid due to deviation from prediction")
                         observed_person_list.remove(person)
                         break
-                    
+                elif len(self.observation_history) < 3:
+                    self.observation_history[frame_timestamp][person.id] = person
+                    self.last_successful_timestamp = frame_timestamp
+                
                 if person.id in self.prev_result.keys():
                     # Set new predicted slope based on current frame result
                     self.predicted_slope[person.id] = (person.coordinate - self.prev_result[person.id].coordinate) / (frame_timestamp - self.prev_timestamp)
